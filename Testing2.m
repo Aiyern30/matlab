@@ -1,7 +1,7 @@
 clc; clear; close all;
 
 % Read the input image
-img = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Car\ProtonX50.jpg'); % Replace with your image path
+img = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Tank\Tank1.jpg'); % Replace with your image path
 figure('Name', 'Original Image'); imshow(img);
 title('Original Image');
 
