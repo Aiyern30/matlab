@@ -54,11 +54,11 @@ for i = 1:numObjects
     % Most Malaysian license plates have an aspect ratio between 2:1 and 5:1
     % They are relatively horizontal (low orientation angle)
     % They have a reasonable size in the image
-    if (aspect_ratio > 2 && aspect_ratio < 5) && ...
-            (abs(orientation) < 20) && ...
-            (area > 1000 && area < 50000) && ...
-            (w > 60 && h > 15) && (w < width(img)/2)
-        
+    % Modify your plate filtering criteria
+    if (aspect_ratio > 1.8 && aspect_ratio < 6) && ...  % Expanded aspect ratio range
+            (abs(orientation) < 25) && ...  % Increased orientation tolerance
+            (area > 800 && area < 60000) && ...  % Expanded area range
+            (w > 50 && h > 12) && (w < width(img)*0.6)  % Adjusted width constraint
         rectangle('Position', bbox, 'EdgeColor', 'r', 'LineWidth', 2);
         plate_candidates = [plate_candidates; bbox];
     end
@@ -123,11 +123,13 @@ for i = 1:min(3, size(plate_candidates, 1))  % Analyze top 3 candidates
     plate_gray = imsharpen(plate_gray, 'Radius', 1, 'Amount', 1);
     
     % 4. Improve binarization with Otsu's method
-    plate_bw = imbinarize(plate_gray);
+    % Add this after your existing preprocessing steps
+    % Adaptive thresholding for better letter detection
+    plate_bw_adaptive = imbinarize(plate_gray, 'adaptive', 'Sensitivity', 0.6);
     
-    % 5. Check if inversion is needed (dark text on light background vs light text on dark background)
-    if mean2(plate_bw) > 0.5
-        plate_bw = ~plate_bw;
+    % Try both regular and adaptive binarization
+    if mean2(plate_bw) > 0.7 || sum(sum(plate_bw))/numel(plate_bw) < 0.05
+        plate_bw = plate_bw_adaptive;  % Use adaptive if regular gives poor results
     end
     
     % 6. Apply morphological operations to clean the binary image
@@ -166,12 +168,12 @@ for i = 1:min(3, size(plate_candidates, 1))  % Analyze top 3 candidates
         char_extent = char_stats(j).Extent;
         char_solidity = char_stats(j).Solidity;  % More robust shape measure
         
-        % Refined criteria for Malaysian license plate characters
-        if (char_ratio >= 1.2 && char_ratio <= 5) && ...
-                (char_h >= height(plate_bw)*0.3 && char_h <= height(plate_bw)*0.9) && ...
-                (char_w >= 5 && char_w <= width(plate_bw)/4) && ...
-                (char_extent >= 0.3) && ...
-                (char_solidity >= 0.6)  % Solidity helps distinguish characters from noise
+        % Modify your character filtering criteria to better detect letters
+        if (char_ratio >= 0.8 && char_ratio <= 5) && ...  % Reduced minimum ratio from 1.2 to 0.8
+                (char_h >= height(plate_bw)*0.25 && char_h <= height(plate_bw)*0.95) && ...  % Expanded height range
+                (char_w >= 5 && char_w <= width(plate_bw)/3) && ...  % Adjusted width constraint
+                (char_extent >= 0.25) && ...  % Reduced extent threshold
+                (char_solidity >= 0.5)  % Reduced solidity threshold
             char_candidates = [char_candidates; char_bbox];
         end
     end
