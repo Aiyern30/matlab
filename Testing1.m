@@ -1,5 +1,5 @@
 % Read the image
-img = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Car\Porsche.jpg');
+img = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Motor\Motor4.jpg');
 
 % Step 1: Convert the image to grayscale
 gray_img = rgb2gray(img);

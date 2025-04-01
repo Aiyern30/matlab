@@ -3,7 +3,7 @@ clear;
 close all;
 
 % Step 1: Load and display the original image
-originalImg = imread('Porsche.jpg');
+originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Car\Porsche1.jpg');
 figure, imshow(originalImg), title('Original Image');
 
 % Step 2: Convert to grayscale
