@@ -3,7 +3,7 @@ clear;
 close all;
 
 % Step 1: Load and display the original image
-originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Boat\Boat1.jpg');
+originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Car\Porsche.jpg');
 
 % Prepare a single figure window
 figure('Name','License Plate Detection Steps','NumberTitle','off');
@@ -69,32 +69,73 @@ subplot(3,3,7), imshow(plateImg), title('Cropped Plate');
 % Step 10: Enhance plate for OCR
 plateBW = imbinarize(plateImg, 'adaptive', 'Sensitivity', 0.45);
 plateBW = imcomplement(plateBW);
-plateBW = medfilt2(plateBW, [2, 2]);
+plateBW = medfilt2(plateBW, [2, 2]);  % Smoothing filter to reduce noise
 subplot(3,3,8), imshow(plateBW), title('Enhanced for OCR');
 
-% Step 11: OCR
+% Step 10.1: Segment first character carefully
+CC = bwconncomp(plateBW);
+stats = regionprops(CC, 'BoundingBox', 'Area');
+bboxes = cat(1, stats.BoundingBox);
+
+% Sort bounding boxes by horizontal position (left to right)
+[~, idx] = sort(bboxes(:,1));
+sortedBoxes = bboxes(idx, :);
+
+% Filter out small bounding boxes (noise)
+filteredBoxes = [];
+for i = 1:size(sortedBoxes,1)
+    if sortedBoxes(i,3) > 10 && sortedBoxes(i,4) > 20  % Min width and height
+        filteredBoxes = [filteredBoxes; sortedBoxes(i,:)];
+    end
+end
+
+% Only process the first character
+firstCharBySegmentation = '';
+if ~isempty(filteredBoxes)
+    firstCharBox = filteredBoxes(1, :);  % The first box is the first character
+    firstCharImg = imcrop(plateBW, firstCharBox);
+    firstCharImg = imresize(firstCharImg, [50 50]);  % Resize for better OCR accuracy
+    firstCharImg = imcomplement(firstCharImg);  % Invert the image to black text on white background
+    
+    % OCR to detect the first character
+    charResult = ocr(firstCharImg, 'CharacterSet', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 'TextLayout', 'Word');
+    firstCharBySegmentation = upper(regexprep(charResult.Text, '[\s]', ''));
+    disp(['First Character by Segmentation: ', firstCharBySegmentation]);
+else
+    disp('First character could not be segmented.');
+end
+
+% Step 11: OCR for the full plate
 results = ocr(plateBW, 'CharacterSet', '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'TextLayout', 'Block');
-recognizedText = regexprep(results.Text, '[\s]', '');
+recognizedText = upper(regexprep(results.Text, '[\s]', ''));
 disp(['Recognized Plate Text: ', recognizedText]);
 
-% Step 12: Detect Malaysian state from first character
+% Step 12: Detect Malaysian state based on first character
 stateMap = containers.Map(...
     {'A','B','C','D','F','J','K','M','N','P','R','T','V','W','Z'}, ...
     {'Perak','Selangor','Pahang','Kelantan','Putrajaya','Johor','Kedah','Melaka','Negeri Sembilan','Penang','Perlis','Terengganu','Labuan','Kuala Lumpur','Military'});
 
 if ~isempty(recognizedText)
-    firstChar = upper(recognizedText(1));
-    if isKey(stateMap, firstChar)
-        state = stateMap(firstChar);
-        disp(['Detected State: ', state]);
+    if ~isempty(firstCharBySegmentation) && firstCharBySegmentation(1) == recognizedText(1)
+        firstChar = firstCharBySegmentation(1);  % Use segmented character
     else
-        state = 'Unknown';
-        disp('State could not be identified from plate prefix.');
+        firstChar = recognizedText(1);  % Fallback to OCR-recognized first character
     end
+elseif ~isempty(firstCharBySegmentation)
+    firstChar = firstCharBySegmentation(1);
 else
-    state = 'Unknown';
-    disp('No plate text recognized.');
+    firstChar = '';
 end
 
-% Step 13: Display final result in last subplot
-subplot(3,3,9), imshow(plateBW), title(['OCR: ', recognizedText, ', State: ', state]);
+% Detect state from the first character
+if ~isempty(firstChar) && isKey(stateMap, firstChar)
+    state = stateMap(firstChar);
+    disp(['Detected State: ', state]);
+else
+    state = 'Unknown';
+    disp('State could not be identified from plate prefix.');
+end
+
+% Step 13: Display final result with OCR output and detected state
+subplot(3,3,9), imshow(plateBW), ...
+    title({['OCR: ', recognizedText], ['SegFirstChar: ', firstCharBySegmentation], ['State: ', state]});
