@@ -3,7 +3,7 @@ clear;
 close all;
 
 % Step 1: Load and display the original image
-originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Car\Porsche.jpg');
+originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Bus\Bus4.png');
 
 % Prepare a single figure window
 figure('Name','License Plate Detection Steps','NumberTitle','off');
@@ -67,75 +67,107 @@ plateImg = imcrop(grayImg, plateBoundingBox);
 subplot(3,3,7), imshow(plateImg), title('Cropped Plate');
 
 % Step 10: Enhance plate for OCR
-plateBW = imbinarize(plateImg, 'adaptive', 'Sensitivity', 0.45);
+% plateBW = imbinarize(plateImg, 'adaptive', 'Sensitivity', 0.45);
+plateBW = imbinarize(plateImg)
 plateBW = imcomplement(plateBW);
 plateBW = medfilt2(plateBW, [2, 2]);  % Smoothing filter to reduce noise
 subplot(3,3,8), imshow(plateBW), title('Enhanced for OCR');
 
-% Step 10.1: Segment first character carefully
+% Step 10.1: Segment characters using regionprops
 CC = bwconncomp(plateBW);
 stats = regionprops(CC, 'BoundingBox', 'Area');
 bboxes = cat(1, stats.BoundingBox);
 
-% Sort bounding boxes by horizontal position (left to right)
+% Sort bounding boxes by x (horizontal) position
 [~, idx] = sort(bboxes(:,1));
 sortedBoxes = bboxes(idx, :);
 
-% Filter out small bounding boxes (noise)
+% Filter out boxes that are too small (noise)
 filteredBoxes = [];
 for i = 1:size(sortedBoxes,1)
-    if sortedBoxes(i,3) > 10 && sortedBoxes(i,4) > 20  % Min width and height
+    w = sortedBoxes(i,3);
+    h = sortedBoxes(i,4);
+    if w > 10 && h > 20 && w < 80 && h < 100  % reasonable width/height for chars
         filteredBoxes = [filteredBoxes; sortedBoxes(i,:)];
     end
 end
 
-% Only process the first character
 firstCharBySegmentation = '';
 if ~isempty(filteredBoxes)
-    firstCharBox = filteredBoxes(1, :);  % The first box is the first character
+    firstCharBox = filteredBoxes(1, :);  % First box from left
     firstCharImg = imcrop(plateBW, firstCharBox);
-    firstCharImg = imresize(firstCharImg, [50 50]);  % Resize for better OCR accuracy
-    firstCharImg = imcomplement(firstCharImg);  % Invert the image to black text on white background
+    firstCharImg = imresize(firstCharImg, [50 50]);  % Normalize size
+    firstCharImg = imcomplement(firstCharImg);  % Black text on white background
+    firstCharImg = imbinarize(firstCharImg);
     
-    % OCR to detect the first character
-    charResult = ocr(firstCharImg, 'CharacterSet', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 'TextLayout', 'Word');
-    firstCharBySegmentation = upper(regexprep(charResult.Text, '[\s]', ''));
-    disp(['First Character by Segmentation: ', firstCharBySegmentation]);
-else
-    disp('First character could not be segmented.');
+    firstCharResult = ocr(firstCharImg, ...
+        'CharacterSet', 'ABCDFJKMNPRTVWZ', 'TextLayout', 'Word');
+    firstCharCleaned = upper(regexprep(firstCharResult.Text, '[^A-Z]', ''));
+    
+    if ~isempty(firstCharCleaned)
+        firstCharBySegmentation = firstCharCleaned(1);
+    end
 end
 
+% === ALTERNATIVE: Region-based detection for first char (left plate side) ===
+firstCharByRegion = '';
+[H, W] = size(plateBW);
+leftQuarter = imcrop(plateBW, [1, 1, round(W/4), H]);
+leftQuarter = imcomplement(leftQuarter);  % Invert image
+
+% Check if 'leftQuarter' is binary. If not, apply imbinarize.
+if ~islogical(leftQuarter)
+    leftQuarter = imbinarize(leftQuarter);  % Binarize if not already binary
+end
+
+leftQuarter = imresize(leftQuarter, [50 50]);
+
+regionOCR = ocr(leftQuarter, ...
+    'CharacterSet', 'ABCDFJKMNPRTVWZ', 'TextLayout', 'Word');
+cleanRegionText = upper(regexprep(regionOCR.Text, '[^A-Z]', ''));
+
+if ~isempty(cleanRegionText)
+    firstCharByRegion = cleanRegionText(1);
+end
+
+
 % Step 11: OCR for the full plate
-results = ocr(plateBW, 'CharacterSet', '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'TextLayout', 'Block');
+results = ocr(plateBW, ...
+    'CharacterSet', '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'TextLayout', 'Block');
 recognizedText = upper(regexprep(results.Text, '[\s]', ''));
 disp(['Recognized Plate Text: ', recognizedText]);
 
-% Step 12: Detect Malaysian state based on first character
+% Step 12: Detect Malaysian state
 stateMap = containers.Map(...
     {'A','B','C','D','F','J','K','M','N','P','R','T','V','W','Z'}, ...
     {'Perak','Selangor','Pahang','Kelantan','Putrajaya','Johor','Kedah','Melaka','Negeri Sembilan','Penang','Perlis','Terengganu','Labuan','Kuala Lumpur','Military'});
 
-if ~isempty(recognizedText)
-    if ~isempty(firstCharBySegmentation) && firstCharBySegmentation(1) == recognizedText(1)
-        firstChar = firstCharBySegmentation(1);  % Use segmented character
-    else
-        firstChar = recognizedText(1);  % Fallback to OCR-recognized first character
-    end
-elseif ~isempty(firstCharBySegmentation)
-    firstChar = firstCharBySegmentation(1);
+% Prioritize by: Segmented > Region > Full Plate
+if ~isempty(firstCharBySegmentation)
+    firstChar = firstCharBySegmentation;
+elseif ~isempty(firstCharByRegion)
+    firstChar = firstCharByRegion;
+elseif ~isempty(recognizedText)
+    firstChar = recognizedText(1);
 else
     firstChar = '';
 end
 
-% Detect state from the first character
 if ~isempty(firstChar) && isKey(stateMap, firstChar)
     state = stateMap(firstChar);
-    disp(['Detected State: ', state]);
 else
     state = 'Unknown';
-    disp('State could not be identified from plate prefix.');
 end
 
-% Step 13: Display final result with OCR output and detected state
+% Show debug info
+disp(['First Char by Segmentation: ', firstCharBySegmentation]);
+disp(['First Char by Region: ', firstCharByRegion]);
+disp(['Final First Character Used: ', firstChar]);
+disp(['Detected State: ', state]);
+
+% Step 13: Display final result
 subplot(3,3,9), imshow(plateBW), ...
-    title({['OCR: ', recognizedText], ['SegFirstChar: ', firstCharBySegmentation], ['State: ', state]});
+    title({['OCR: ', recognizedText], ...
+    ['SegChar: ', firstCharBySegmentation], ...
+    ['RegionChar: ', firstCharByRegion], ...
+    ['State: ', state]});
