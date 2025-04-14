@@ -3,7 +3,7 @@ clear;
 close all;
 
 % Step 1: Load and display the original image
-originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Boat\Boat5.jpg');
+originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Bus\Bus3.jpg');
 
 % Prepare a single figure window
 figure('Name','License Plate Detection Steps','NumberTitle','off');
