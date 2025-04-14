@@ -4,41 +4,39 @@ close all;
 
 % Step 1: Load and display the original image
 originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Car\Porsche1.jpg');
-figure, imshow(originalImg), title('Original Image');
+
+% Prepare a single figure window
+figure('Name','License Plate Detection Steps','NumberTitle','off');
+
+subplot(3,3,1), imshow(originalImg), title('Original Image');
 
 % Step 2: Convert to grayscale
 grayImg = rgb2gray(originalImg);
-figure, imshow(grayImg), title('Grayscale Image');
+subplot(3,3,2), imshow(grayImg), title('Grayscale Image');
 
-% Step 3: Enhance contrast to improve edge detection
+% Step 3: Enhance contrast
 grayImg = imadjust(grayImg);
-figure, imshow(grayImg), title('Contrast Enhanced Image');
+subplot(3,3,3), imshow(grayImg), title('Contrast Enhanced');
 
-% Step 4: Edge detection using Canny (adjust thresholds if needed)
+% Step 4: Edge detection using Canny
 edges = edge(grayImg, 'Canny', [0.1 0.3]);
-figure, imshow(edges), title('Canny Edge Detection');
+subplot(3,3,4), imshow(edges), title('Canny Edges');
 
-% Step 5: Morphological closing to connect nearby edge segments
-se = strel('rectangle', [3, 15]);  % Adjust size as needed
+% Step 5: Morphological closing
+se = strel('rectangle', [3, 15]);
 closedImg = imclose(edges, se);
-figure, imshow(closedImg), title('Morphologically Closed Image');
+subplot(3,3,5), imshow(closedImg), title('Morphological Closing');
 
-% (Optional) Uncomment below to fill holes if necessary
-% filledImg = imfill(closedImg, 'holes');
-% figure, imshow(filledImg), title('Hole Filled Image');
-
-% Step 6: Use regionprops to extract candidate regions
+% Step 6: Use regionprops to find candidate boxes
 props = regionprops(closedImg, 'BoundingBox', 'Area', 'Extent');
 candidateBoxes = [];
 
-% Filter based on typical number plate properties (area, aspect ratio, and extent)
 for k = 1:length(props)
     bbox = props(k).BoundingBox;
     area = props(k).Area;
-    aspectRatio = bbox(3) / bbox(4); % width/height
-    extent = props(k).Extent;         % ratio of region area to bbox area
+    aspectRatio = bbox(3) / bbox(4);
+    extent = props(k).Extent;
     
-    % Adjust thresholds for your specific images:
     if area > 200 && aspectRatio > 2 && aspectRatio < 6 && extent > 0.4
         candidateBoxes = [candidateBoxes; bbox];
     end
@@ -49,7 +47,7 @@ if isempty(candidateBoxes)
     return;
 end
 
-% Step 7: Select the candidate region with the largest area
+% Step 7: Select largest candidate region
 maxArea = 0;
 plateBoundingBox = [];
 for k = 1:size(candidateBoxes, 1)
@@ -61,23 +59,24 @@ for k = 1:size(candidateBoxes, 1)
     end
 end
 
-% Visualize the detected candidate region on the original image
-figure, imshow(originalImg), title('Detected Plate Candidate');
-rectangle('Position', plateBoundingBox, 'EdgeColor', 'r', 'LineWidth', 2);
+% Step 8: Show detected box on original image
+detectedImg = insertShape(originalImg, 'Rectangle', plateBoundingBox, 'Color', 'red', 'LineWidth', 2);
+subplot(3,3,6), imshow(detectedImg), title('Detected Plate Box');
 
-% Step 8: Crop the candidate region from the grayscale image
+% Step 9: Crop the plate
 plateImg = imcrop(grayImg, plateBoundingBox);
-figure, imshow(plateImg), title('Cropped Plate Region');
+subplot(3,3,7), imshow(plateImg), title('Cropped Plate');
 
-% Step 9: Enhance the cropped plate image for OCR
+% Step 10: Enhance plate for OCR
 plateBW = imbinarize(plateImg, 'adaptive', 'Sensitivity', 0.45);
-plateBW = imcomplement(plateBW);  % invert if necessary so text is dark on a light background
-plateBW = medfilt2(plateBW, [2, 2]); % smooth out noise
-figure, imshow(plateBW), title('Enhanced Plate for OCR');
+plateBW = imcomplement(plateBW);
+plateBW = medfilt2(plateBW, [2, 2]);
+subplot(3,3,8), imshow(plateBW), title('Enhanced for OCR');
 
-% Step 10: Apply OCR to extract text
+% Step 11: OCR
 results = ocr(plateBW, 'CharacterSet', '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'TextLayout', 'Block');
-
-% Remove any whitespace from the OCR result
 recognizedText = regexprep(results.Text, '[\s]', '');
+
+% Step 12: Display recognized text in command window and figure
 disp(['Recognized Plate Text: ', recognizedText]);
+subplot(3,3,9), imshow(plateBW), title(['OCR Result: ', recognizedText]);
