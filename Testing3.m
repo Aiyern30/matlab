@@ -3,11 +3,10 @@ clear;
 close all;
 
 % Step 1: Load and display the original image
-originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Bus\Bus3.jpg');
+originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Boat\Boat1.jpg');
 
 % Prepare a single figure window
 figure('Name','License Plate Detection Steps','NumberTitle','off');
-
 subplot(3,3,1), imshow(originalImg), title('Original Image');
 
 % Step 2: Convert to grayscale
@@ -76,7 +75,26 @@ subplot(3,3,8), imshow(plateBW), title('Enhanced for OCR');
 % Step 11: OCR
 results = ocr(plateBW, 'CharacterSet', '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'TextLayout', 'Block');
 recognizedText = regexprep(results.Text, '[\s]', '');
-
-% Step 12: Display recognized text in command window and figure
 disp(['Recognized Plate Text: ', recognizedText]);
-subplot(3,3,9), imshow(plateBW), title(['OCR Result: ', recognizedText]);
+
+% Step 12: Detect Malaysian state from first character
+stateMap = containers.Map(...
+    {'A','B','C','D','F','J','K','M','N','P','R','T','V','W','Z'}, ...
+    {'Perak','Selangor','Pahang','Kelantan','Putrajaya','Johor','Kedah','Melaka','Negeri Sembilan','Penang','Perlis','Terengganu','Labuan','Kuala Lumpur','Military'});
+
+if ~isempty(recognizedText)
+    firstChar = upper(recognizedText(1));
+    if isKey(stateMap, firstChar)
+        state = stateMap(firstChar);
+        disp(['Detected State: ', state]);
+    else
+        state = 'Unknown';
+        disp('State could not be identified from plate prefix.');
+    end
+else
+    state = 'Unknown';
+    disp('No plate text recognized.');
+end
+
+% Step 13: Display final result in last subplot
+subplot(3,3,9), imshow(plateBW), title(['OCR: ', recognizedText, ', State: ', state]);
