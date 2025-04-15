@@ -3,7 +3,7 @@ clear;
 close all;
 
 % Step 1: Load and display the original image
-originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Bus\Bus4.png');
+originalImg = imread('C:\Users\ianbi\Desktop\MATLAB\Preprocessing\Truck\Truck2.jpg');
 
 % Prepare a single figure window
 figure('Name','License Plate Detection Steps','NumberTitle','off');
@@ -67,8 +67,8 @@ plateImg = imcrop(grayImg, plateBoundingBox);
 subplot(3,3,7), imshow(plateImg), title('Cropped Plate');
 
 % Step 10: Enhance plate for OCR
-% plateBW = imbinarize(plateImg, 'adaptive', 'Sensitivity', 0.45);
-plateBW = imbinarize(plateImg)
+plateBW = imbinarize(plateImg, 'adaptive', 'Sensitivity', 0.45);
+% plateBW = imbinarize(plateImg)
 plateBW = imcomplement(plateBW);
 plateBW = medfilt2(plateBW, [2, 2]);  % Smoothing filter to reduce noise
 subplot(3,3,8), imshow(plateBW), title('Enhanced for OCR');
